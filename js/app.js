@@ -33,7 +33,7 @@ function main() {
 };
 
 function init() {
-    terrainPattern = ctx.createPattern(resources.get('img/terrain.png'), 'repeat');
+    terrainPattern = ctx.createPattern(resources.get('img/grass.png'), 'repeat');
 
     document.getElementById('play-again').addEventListener('click', function() {
         reset();
@@ -46,14 +46,14 @@ function init() {
 
 resources.load([
     'img/sprites.png',
-    'img/terrain.png'
+    'img/grass.png'
 ]);
 resources.onReady(init);
 
 // Game state
 var player = {
     pos: [0, 0],
-    sprite: new Sprite('img/sprites.png', [0, 0], [39, 39], 16, [0, 1])
+    sprite: new Sprite('img/sprites.png', [0, 167], [88, 89], 10, [0, 1])
 };
 
 var bullets = [];
@@ -71,7 +71,18 @@ var scoreEl = document.getElementById('score');
 // Speed in pixels per second
 var playerSpeed = 200;
 var bulletSpeed = 500;
-var enemySpeed = 100;
+var enemySpeed = 20;
+
+// Audio files
+var backgroundAudio = new Audio("sounds/background.mp3");
+backgroundAudio.loop = true;
+backgroundAudio.volume = .12;
+backgroundAudio.load();
+
+var gameOverAudio = new Audio("sounds/game_over.wav");
+gameOverAudio.loop = true;
+gameOverAudio.volume = .20;
+gameOverAudio.load();
 
 // Update game objects
 function update(dt) {
@@ -82,12 +93,12 @@ function update(dt) {
 
     // It gets harder over time by adding enemies using this
     // equation: 1-.993^gameTime
-    if(Math.random() < 1 - Math.pow(.993, gameTime)) {
+    if(Math.random() < 1 - Math.pow(.9991, gameTime)) {
         enemies.push({
             pos: [canvas.width,
                   Math.random() * (canvas.height - 39)],
-            sprite: new Sprite('img/sprites.png', [0, 78], [80, 39],
-                               6, [0, 1, 2, 3, 2, 1])
+            sprite: new Sprite('img/sprites.png', [40, 415], [72, 54],
+                               7, [0, 1, 2, 3, 4, 3, 2, 1])
         });
     }
 
@@ -97,6 +108,10 @@ function update(dt) {
 };
 
 function handleInput(dt) {
+    var playerMoveSprite = new Sprite('img/sprites.png', [130, 167], [88, 89], 10, [0, 1]);
+    var playerAttackSprite = new Sprite('img/sprites.png', [130, 310], [88, 89], 4, [0, 1]);
+    var playerSprite = new Sprite('img/sprites.png', [0, 167], [88, 89], 16, [0]);
+
     if(input.isDown('DOWN') || input.isDown('s')) {
         player.pos[1] += playerSpeed * dt;
     }
@@ -116,20 +131,20 @@ function handleInput(dt) {
     if(input.isDown('SPACE') &&
        !isGameOver &&
        Date.now() - lastFire > 100) {
-        var x = player.pos[0] + player.sprite.size[0] / 2;
-        var y = player.pos[1] + player.sprite.size[1] / 2;
+        var x = player.pos[0] + 74;
+        var y = player.pos[1] + 51;
+        var sound = new SoundPool(1);
+        sound.init("gun");
+        sound.get();
 
+        player.sprite = playerAttackSprite;
         bullets.push({ pos: [x, y],
                        dir: 'forward',
-                       sprite: new Sprite('img/sprites.png', [0, 39], [18, 8]) });
-        bullets.push({ pos: [x, y],
-                       dir: 'up',
-                       sprite: new Sprite('img/sprites.png', [0, 50], [9, 5]) });
-        bullets.push({ pos: [x, y],
-                       dir: 'down',
-                       sprite: new Sprite('img/sprites.png', [0, 60], [9, 5]) });
+                       sprite: new Sprite('img/sprites.png', [0, 32], [18, 8]) });
 
         lastFire = Date.now();
+    } else if (!input.isDown('SPACE')) {
+        player.sprite = playerSprite;
     }
 }
 
@@ -171,7 +186,6 @@ function updateEntities(dt) {
     // Update all the explosions
     for(var i=0; i<explosions.length; i++) {
         explosions[i].sprite.update(dt);
-
         // Remove if animation is done
         if(explosions[i].sprite.done) {
             explosions.splice(i, 1);
@@ -196,7 +210,7 @@ function boxCollides(pos, size, pos2, size2) {
 
 function checkCollisions() {
     checkPlayerBounds();
-    
+
     // Run collision detection for all enemies and bullets
     for(var i=0; i<enemies.length; i++) {
         var pos = enemies[i].pos;
@@ -213,17 +227,19 @@ function checkCollisions() {
 
                 // Add score
                 score += 100;
-
+                var explosionSound = new SoundPool(1);
+                explosionSound.init("explosion");
+                explosionSound.get();
                 // Add an explosion
                 explosions.push({
                     pos: pos,
                     sprite: new Sprite('img/sprites.png',
-                                       [0, 117],
+                                       [0, 112],
                                        [39, 39],
                                        16,
                                        [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
                                        null,
-                                       true)
+                                       true),
                 });
 
                 // Remove the bullet and stop this iteration
@@ -273,7 +289,7 @@ function render() {
 function renderEntities(list) {
     for(var i=0; i<list.length; i++) {
         renderEntity(list[i]);
-    }    
+    }
 }
 
 function renderEntity(entity) {
@@ -285,6 +301,10 @@ function renderEntity(entity) {
 
 // Game over
 function gameOver() {
+    backgroundAudio.pause();
+    gameOverAudio.play();
+
+    // backgroundAudio.stop();
     document.getElementById('game-over').style.display = 'block';
     document.getElementById('game-over-overlay').style.display = 'block';
     isGameOver = true;
@@ -294,6 +314,8 @@ function gameOver() {
 function reset() {
     document.getElementById('game-over').style.display = 'none';
     document.getElementById('game-over-overlay').style.display = 'none';
+    backgroundAudio.play();
+    gameOverAudio.pause();
     isGameOver = false;
     gameTime = 0;
     score = 0;
